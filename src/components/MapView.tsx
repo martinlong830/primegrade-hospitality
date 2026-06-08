@@ -10,8 +10,6 @@ import {
 } from "react";
 import { getSectionsForStation, formatSectionTimingSummary } from "@/lib/db";
 import {
-  DEFAULT_MAP_HEIGHT,
-  DEFAULT_MAP_WIDTH,
   MAX_MAP_HEIGHT,
   MAX_MAP_WIDTH,
   MIN_MAP_HEIGHT,
@@ -455,10 +453,6 @@ export default function MapView({
   const [resetting, setResetting] = useState(false);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [editZoneName, setEditZoneName] = useState("");
-  const [layoutInputs, setLayoutInputs] = useState({
-    width: String(DEFAULT_MAP_WIDTH),
-    height: String(DEFAULT_MAP_HEIGHT),
-  });
 
   const mergedZones = useMemo(
     () => mergeMapZones(mapZones ?? getDefaultMapZoneLabels()),
@@ -479,13 +473,6 @@ export default function MapView({
   useEffect(() => {
     setLocalLayout(mergeMapLayout(mapLayoutProp ?? getDefaultMapLayout()));
   }, [mapLayoutProp]);
-
-  useEffect(() => {
-    setLayoutInputs({
-      width: String(localLayout.width),
-      height: String(localLayout.height),
-    });
-  }, [localLayout]);
 
   useEffect(() => {
     setLocalStations((prev) => {
@@ -757,10 +744,6 @@ export default function MapView({
             canvasResize.originH + dy
           );
           setLocalLayout(next);
-          setLayoutInputs({
-            width: String(next.width),
-            height: String(next.height),
-          });
         });
         return;
       }
@@ -994,13 +977,6 @@ export default function MapView({
     setEditZoneName("");
   }, [editZoneName, editingZoneId, onMapZoneRename]);
 
-  const applyLayoutInputs = () => {
-    const width = parseInt(layoutInputs.width, 10);
-    const height = parseInt(layoutInputs.height, 10);
-    if (!Number.isFinite(width) || !Number.isFinite(height)) return;
-    commitLayoutSize(width, height);
-  };
-
   const canEditZones = editable && Boolean(onMapZoneResize);
   const canEditCanvas = editable && Boolean(onMapLayoutChange);
 
@@ -1091,52 +1067,6 @@ export default function MapView({
           </div>
         )}
       </div>
-
-      {canEditCanvas && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="w-full text-xs font-medium uppercase tracking-wide text-slate-500">
-            Floor plan size
-          </p>
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
-            Width (px)
-            <input
-              type="number"
-              min={MIN_MAP_WIDTH}
-              max={MAX_MAP_WIDTH}
-              value={layoutInputs.width}
-              onChange={(e) =>
-                setLayoutInputs((prev) => ({ ...prev, width: e.target.value }))
-              }
-              onKeyDown={(e) => e.key === "Enter" && applyLayoutInputs()}
-              className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
-            Height (px)
-            <input
-              type="number"
-              min={MIN_MAP_HEIGHT}
-              max={MAX_MAP_HEIGHT}
-              value={layoutInputs.height}
-              onChange={(e) =>
-                setLayoutInputs((prev) => ({ ...prev, height: e.target.value }))
-              }
-              onKeyDown={(e) => e.key === "Enter" && applyLayoutInputs()}
-              className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={applyLayoutInputs}
-            className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-300 hover:bg-slate-100"
-          >
-            Apply
-          </button>
-          <p className="text-xs text-slate-400">
-            Or drag the bottom-right corner of the frame.
-          </p>
-        </div>
-      )}
 
       <div
         ref={containerRef}

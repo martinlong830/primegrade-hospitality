@@ -9,6 +9,12 @@ import {
   resetAllStationLayouts,
 } from "./mapConstants";
 import { DEFAULT_DATA } from "./seed";
+import {
+  COMPLETION_FUTURE_DAYS,
+  COMPLETION_HISTORY_DAYS,
+  addDays,
+  getToday,
+} from "./dates";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 import type {
   AppData,
@@ -28,7 +34,7 @@ const SECTION_TIMING_VERSION_KEY = "doh-section-timing-version";
 const SECTION_TIMING_VERSION = 2;
 
 function today(): string {
-  return new Date().toISOString().split("T")[0];
+  return getToday();
 }
 
 type LegacyShift = "opening" | "during_service" | "closing";
@@ -494,13 +500,20 @@ async function fetchSupabaseData(): Promise<AppData | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
 
+  const rangeFrom = addDays(today(), -COMPLETION_HISTORY_DAYS);
+  const rangeTo = addDays(today(), COMPLETION_FUTURE_DAYS);
+
   const [users, stations, sections, tasks, completions, mapZones, mapLayout] =
     await Promise.all([
       supabase.from("users").select("*"),
       supabase.from("stations").select("*"),
       supabase.from("task_sections").select("*").order("sort_order"),
       supabase.from("tasks").select("*").order("sort_order"),
-      supabase.from("task_completions").select("*").eq("date", today()),
+      supabase
+        .from("task_completions")
+        .select("*")
+        .gte("date", rangeFrom)
+        .lte("date", rangeTo),
       supabase.from("map_zones").select("*"),
       supabase.from("map_layout").select("*").eq("id", "default").maybeSingle(),
     ]);
@@ -561,8 +574,38 @@ async function persistMapLayout(mapLayout: MapLayoutSettings): Promise<void> {
   });
 }
 
+function mergeCompletions(
+  existing: TaskCompletion[],
+  incoming: TaskCompletion[]
+): TaskCompletion[] {
+  const byKey = new Map<string, TaskCompletion>();
+  for (const c of existing) {
+    byKey.set(`${c.task_id}:${c.date}`, c);
+  }
+  for (const c of incoming) {
+    byKey.set(`${c.task_id}:${c.date}`, c);
+  }
+  return Array.from(byKey.values());
+}
+
 function cacheLocally(data: AppData): void {
-  saveLocal(data);
+  const local = loadLocalRaw();
+  const merged = local
+    ? { ...data, completions: mergeCompletions(local.completions, data.completions) }
+    : data;
+  saveLocal(merged);
+}
+
+function loadLocalRaw(): AppData | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as LegacyAppData;
+    return applyLayoutMigration(migrateLegacyData(parsed));
+  } catch {
+    return null;
+  }
 }
 
 export async function getAppData(): Promise<AppData> {
@@ -570,15 +613,25 @@ export async function getAppData(): Promise<AppData> {
     const remote = await fetchSupabaseData();
     if (remote) {
       const migrated = applyLayoutMigration(remote);
-      persistSectionTimingIfChanged(remote, migrated);
-      if (migrated.stations !== remote.stations) {
-        await persistMigratedStations(migrated.stations);
+      const local = loadLocalRaw();
+      const withCompletions = local
+        ? {
+            ...migrated,
+            completions: mergeCompletions(
+              local.completions,
+              migrated.completions
+            ),
+          }
+        : migrated;
+      persistSectionTimingIfChanged(remote, withCompletions);
+      if (withCompletions.stations !== remote.stations) {
+        await persistMigratedStations(withCompletions.stations);
       }
-      if (migrated.sections !== remote.sections) {
-        await persistMigratedSections(migrated.sections);
+      if (withCompletions.sections !== remote.sections) {
+        await persistMigratedSections(withCompletions.sections);
       }
-      cacheLocally(migrated);
-      return migrated;
+      cacheLocally(withCompletions);
+      return withCompletions;
     }
   }
   return loadLocal();
@@ -1060,7 +1113,15 @@ export function formatTimingSummary(task: Task): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-function formatTime12(time: string): string {
+export function timeToMinutes(time: string): number {
+  const [hStr, mStr] = time.split(":");
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 99998;
+  return h * 60 + m;
+}
+
+export function formatTime12(time: string): string {
   const [hStr, mStr] = time.split(":");
   const h = parseInt(hStr, 10);
   const m = parseInt(mStr, 10);
@@ -1087,4 +1148,52 @@ export function formatSectionTimingSummary(section: TaskSection): string | null 
     parts.push(`${section.due_window_minutes} min window`);
   }
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+export interface SectionScheduleGroup {
+  key: string;
+  sortKey: number;
+  label: string;
+  subtitle: string | null;
+}
+
+export function getSectionScheduleGroup(
+  section: TaskSection | null | undefined
+): SectionScheduleGroup {
+  if (!section) {
+    return {
+      key: "unscheduled",
+      sortKey: 99999,
+      label: "Unscheduled",
+      subtitle: null,
+    };
+  }
+
+  const subtitle = formatSectionTimingSummary(section);
+
+  if (section.time) {
+    return {
+      key: `time-${section.time}`,
+      sortKey: timeToMinutes(section.time),
+      label: formatTime12(section.time),
+      subtitle,
+    };
+  }
+
+  if (section.recurrence === "interval") {
+    const interval = section.interval_minutes ?? 0;
+    return {
+      key: `interval-${interval}`,
+      sortKey: 720 + interval,
+      label: subtitle ?? "Repeating tasks",
+      subtitle,
+    };
+  }
+
+  return {
+    key: "during-service",
+    sortKey: 660,
+    label: "During Service",
+    subtitle,
+  };
 }

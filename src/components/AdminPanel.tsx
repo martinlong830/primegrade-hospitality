@@ -30,15 +30,18 @@ import {
   type AppData,
   type Station,
   type Task,
+  type TaskCompletion,
   type TaskRecurrence,
   type TaskSection,
 } from "@/lib/types";
 import { useTaskSectionDragDrop } from "@/hooks/useTaskSectionDragDrop";
+import { useViewDate } from "@/contexts/DateContext";
 import MapView from "./MapView";
 import StationTabs from "./StationTabs";
 
 interface AdminPanelProps {
   data: AppData;
+  completionsForDate: TaskCompletion[];
   onUpdate: () => void;
 }
 
@@ -61,7 +64,12 @@ const emptyNewTask = () => ({
   assigned_user_id: "",
 });
 
-export default function AdminPanel({ data, onUpdate }: AdminPanelProps) {
+export default function AdminPanel({
+  data,
+  completionsForDate,
+  onUpdate,
+}: AdminPanelProps) {
+  const { fullLabel, isViewingToday } = useViewDate();
   const [tab, setTab] = useState<"stations" | "team" | "map" | "status">(
     "stations"
   );
@@ -131,9 +139,6 @@ export default function AdminPanel({ data, onUpdate }: AdminPanelProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showAddStation]);
-
-  const today = new Date().toISOString().split("T")[0];
-  const todayCompletions = data.completions.filter((c) => c.date === today);
 
   const stationSections = selectedStation
     ? getSectionsForStation(data.sections, selectedStation.id)
@@ -896,7 +901,7 @@ export default function AdminPanel({ data, onUpdate }: AdminPanelProps) {
               <StationTabs
                 stations={data.stations}
                 tasks={data.tasks}
-                completions={data.completions}
+                completions={completionsForDate}
                 selectedSlug={selectedStationSlug}
                 onSelect={(slug) => {
                   setSelectedStationSlug(slug);
@@ -1108,6 +1113,12 @@ export default function AdminPanel({ data, onUpdate }: AdminPanelProps) {
       )}
 
       {tab === "status" && (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            Completion status for{" "}
+            <span className="font-medium text-slate-900">{fullLabel}</span>
+            {isViewingToday ? " (today)" : ""}
+          </p>
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
@@ -1135,7 +1146,7 @@ export default function AdminPanel({ data, onUpdate }: AdminPanelProps) {
             </thead>
             <tbody>
               {data.tasks.map((task) => {
-                const completion = todayCompletions.find(
+                const completion = completionsForDate.find(
                   (c) => c.task_id === task.id
                 );
                 const station = data.stations.find(
@@ -1192,6 +1203,7 @@ export default function AdminPanel({ data, onUpdate }: AdminPanelProps) {
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>

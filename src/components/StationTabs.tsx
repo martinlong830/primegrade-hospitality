@@ -8,6 +8,10 @@ interface StationTabsProps {
   completions: TaskCompletion[];
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
+  showAllTab?: boolean;
+  allSelected?: boolean;
+  onSelectAll?: () => void;
+  allTabLabel?: string;
   showMapTab?: boolean;
   mapSelected?: boolean;
   onSelectMap?: () => void;
@@ -19,6 +23,10 @@ export default function StationTabs({
   completions,
   selectedSlug,
   onSelect,
+  showAllTab = false,
+  allSelected = false,
+  onSelectAll,
+  allTabLabel = "All Locations",
   showMapTab = false,
   mapSelected = false,
   onSelectMap,
@@ -31,11 +39,50 @@ export default function StationTabs({
     return { total: stationTasks.length, completed };
   };
 
+  const allStats = (() => {
+    const total = tasks.length;
+    const completed = tasks.filter((t) =>
+      completions.some((c) => c.task_id === t.id)
+    ).length;
+    return { total, completed };
+  })();
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {showAllTab && onSelectAll && (
+        <button
+          type="button"
+          onClick={onSelectAll}
+          className={`rounded-xl border-2 p-5 text-left transition-all ${
+            allSelected
+              ? "border-emerald-500 bg-emerald-50 shadow-md ring-2 ring-emerald-200"
+              : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+          }`}
+        >
+          <h3
+            className={`text-lg font-semibold ${
+              allSelected ? "text-emerald-900" : "text-slate-900"
+            }`}
+          >
+            {allTabLabel}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {allStats.total === 0
+              ? "No tasks yet"
+              : `${allStats.completed}/${allStats.total} tasks complete`}
+          </p>
+          {allStats.total > 0 && allStats.completed === allStats.total && (
+            <span className="mt-2 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              All done
+            </span>
+          )}
+        </button>
+      )}
+
       {stations.map((station) => {
         const { total, completed } = getStationStats(station.id);
-        const isSelected = selectedSlug === station.slug && !mapSelected;
+        const isSelected =
+          selectedSlug === station.slug && !mapSelected && !allSelected;
         const allDone = total > 0 && completed === total;
 
         return (

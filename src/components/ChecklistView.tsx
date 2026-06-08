@@ -24,6 +24,9 @@ interface ChecklistViewProps {
   currentUser: User;
   station: Station;
   onUpdate: () => void;
+  readOnly?: boolean;
+  viewMode?: "today" | "past" | "future";
+  viewDateLabel?: string;
 }
 
 export default function ChecklistView({
@@ -34,6 +37,9 @@ export default function ChecklistView({
   currentUser,
   station,
   onUpdate,
+  readOnly = false,
+  viewMode = "today",
+  viewDateLabel,
 }: ChecklistViewProps) {
   const stationTasks = tasks.filter((t) => t.station_id === station.id);
   const stationSections = getSectionsForStation(sections, station.id);
@@ -44,7 +50,7 @@ export default function ChecklistView({
     getDropZoneClassName,
     getDragHandleProps,
     getSectionDropProps,
-  } = useTaskSectionDragDrop(stationTasks, onUpdate);
+  } = useTaskSectionDragDrop(stationTasks, readOnly ? () => {} : onUpdate);
 
   const getCompletion = (taskId: string) =>
     completions.find((c) => c.task_id === taskId);
@@ -55,6 +61,7 @@ export default function ChecklistView({
   };
 
   const handleToggle = async (task: Task) => {
+    if (readOnly) return;
     const existing = getCompletion(task.id);
     if (existing) {
       await uncompleteTask(task.id);
@@ -76,28 +83,32 @@ export default function ChecklistView({
           draggingTaskId === task.id ? "opacity-50" : ""
         }`}
       >
-        <button
-          type="button"
-          {...getDragHandleProps(task.id)}
-          aria-label={`Drag ${task.title} to another section`}
-          className="mt-4 shrink-0 cursor-grab touch-none rounded px-1 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
-        >
-          <svg
-            aria-hidden
-            className="h-4 w-4"
-            viewBox="0 0 16 16"
-            fill="currentColor"
+        {!readOnly && (
+          <button
+            type="button"
+            {...getDragHandleProps(task.id)}
+            aria-label={`Drag ${task.title} to another section`}
+            className="mt-4 shrink-0 cursor-grab touch-none rounded px-1 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
           >
-            <circle cx="5" cy="4" r="1.25" />
-            <circle cx="11" cy="4" r="1.25" />
-            <circle cx="5" cy="8" r="1.25" />
-            <circle cx="11" cy="8" r="1.25" />
-            <circle cx="5" cy="12" r="1.25" />
-            <circle cx="11" cy="12" r="1.25" />
-          </svg>
-        </button>
+            <svg
+              aria-hidden
+              className="h-4 w-4"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <circle cx="5" cy="4" r="1.25" />
+              <circle cx="11" cy="4" r="1.25" />
+              <circle cx="5" cy="8" r="1.25" />
+              <circle cx="11" cy="8" r="1.25" />
+              <circle cx="5" cy="12" r="1.25" />
+              <circle cx="11" cy="12" r="1.25" />
+            </svg>
+          </button>
+        )}
         <label
-          className={`flex flex-1 cursor-pointer items-start gap-4 rounded-lg border p-4 transition-all ${
+          className={`flex flex-1 items-start gap-4 rounded-lg border p-4 transition-all ${
+            readOnly ? "cursor-default" : "cursor-pointer"
+          } ${
             completion
               ? "border-emerald-300 bg-emerald-50"
               : "border-slate-200 bg-white hover:border-slate-300"
@@ -106,8 +117,9 @@ export default function ChecklistView({
           <input
             type="checkbox"
             checked={!!completion}
+            disabled={readOnly}
             onChange={() => handleToggle(task)}
-            className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-60"
           />
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -153,75 +165,120 @@ export default function ChecklistView({
   }
 
   const unsectionedTasks = stationTasks.filter((t) => !t.section_id);
+  const upcomingTasks = stationTasks.filter((t) => !getCompletion(t.id));
+  const completedTasks = stationTasks.filter((t) => getCompletion(t.id));
+
+  const renderSectionBlock = (
+    section: TaskSection | null,
+    sectionTasks: Task[],
+    options: { muted?: boolean } = {}
+  ) => {
+    if (sectionTasks.length === 0 && !isDragging) return null;
+
+    const sectionId = section?.id ?? null;
+    const completed = sectionTasks.filter((t) => getCompletion(t.id)).length;
+    const timingSummary = section ? formatSectionTimingSummary(section) : null;
+    const title = section?.name ?? "Other Tasks";
+
+    return (
+      <div
+        key={section?.id ?? "unsectioned"}
+        {...getSectionDropProps(sectionId)}
+        className={getDropZoneClassName(
+          "rounded-lg transition-colors",
+          sectionId
+        )}
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+          <h4
+            className={`font-semibold ${options.muted ? "text-slate-500" : "text-slate-900"}`}
+          >
+            {title}
+          </h4>
+          {timingSummary && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              {timingSummary}
+            </span>
+          )}
+          <span className="text-xs text-slate-500">
+            {completed}/{sectionTasks.length} complete
+          </span>
+        </div>
+        {sectionTasks.length > 0 ? (
+          <div className="space-y-3">{sectionTasks.map(renderTask)}</div>
+        ) : (
+          <p className="min-h-[2.5rem] rounded-md border border-dashed border-emerald-300 p-3 text-xs italic text-slate-400">
+            Drop tasks here
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderTaskGroup = (
+    tasksToShow: Task[],
+    emptyMessage: string
+  ) => {
+    if (tasksToShow.length === 0) {
+      return (
+        <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+          {emptyMessage}
+        </p>
+      );
+    }
+
+    const taskIds = new Set(tasksToShow.map((t) => t.id));
+    const sectionsWithTasks = stationSections.filter((section) =>
+      tasksToShow.some((t) => t.section_id === section.id)
+    );
+    const unsectionedInGroup = tasksToShow.filter((t) => !t.section_id);
+
+    return (
+      <div className="space-y-5">
+        {sectionsWithTasks.map((section) =>
+          renderSectionBlock(
+            section,
+            tasksToShow.filter((t) => t.section_id === section.id)
+          )
+        )}
+        {(unsectionedInGroup.length > 0 || (isDragging && unsectionedTasks.some((t) => taskIds.has(t.id)))) &&
+          renderSectionBlock(
+            null,
+            unsectionedInGroup,
+            { muted: true }
+          )}
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      {stationSections.map((section) => {
-        const sectionTasks = stationTasks.filter(
-          (t) => t.section_id === section.id
-        );
-        if (sectionTasks.length === 0 && !isDragging) return null;
-
-        const completed = sectionTasks.filter((t) =>
-          getCompletion(t.id)
-        ).length;
-        const timingSummary = formatSectionTimingSummary(section);
-
-        return (
-          <div
-            key={section.id}
-            {...getSectionDropProps(section.id)}
-            className={getDropZoneClassName(
-              "rounded-lg transition-colors",
-              section.id
-            )}
-          >
-            <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
-              <h3 className="font-semibold text-slate-900">{section.name}</h3>
-              {timingSummary && (
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                  {timingSummary}
-                </span>
-              )}
-              <span className="text-xs text-slate-500">
-                {completed}/{sectionTasks.length} complete
-              </span>
-            </div>
-            {sectionTasks.length > 0 ? (
-              <div className="space-y-3">{sectionTasks.map(renderTask)}</div>
-            ) : (
-              <p className="min-h-[2.5rem] rounded-md border border-dashed border-emerald-300 p-3 text-xs italic text-slate-400">
-                Drop tasks here
-              </p>
-            )}
-          </div>
-        );
-      })}
-
-      {(unsectionedTasks.length > 0 || isDragging) && (
-        <div
-          {...getSectionDropProps(null)}
-          className={getDropZoneClassName(
-            "rounded-lg transition-colors",
-            null
-          )}
-        >
-          <div className="mb-3 flex items-center gap-2 border-b border-slate-200 pb-2">
-            <h3 className="font-semibold text-slate-500">Other Tasks</h3>
-            <span className="text-xs text-slate-400">
-              {unsectionedTasks.length} task
-              {unsectionedTasks.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          {unsectionedTasks.length > 0 ? (
-            <div className="space-y-3">{unsectionedTasks.map(renderTask)}</div>
-          ) : (
-            <p className="min-h-[2.5rem] rounded-md border border-dashed border-emerald-300 p-3 text-xs italic text-slate-400">
-              Drop tasks here to unassign
-            </p>
-          )}
-        </div>
+    <div className="space-y-8">
+      {readOnly && viewDateLabel && viewMode === "past" && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Viewing <span className="font-medium text-slate-900">{viewDateLabel}</span>
+          {" — "}
+          {completedTasks.length > 0
+            ? `${completedTasks.length} task(s) were completed on this day.`
+            : "No tasks were completed on this day."}{" "}
+          History is read-only.
+        </p>
       )}
+
+      <section>
+        <h2 className="mb-4 text-lg font-bold text-slate-900">Upcoming Tasks</h2>
+        {renderTaskGroup(
+          upcomingTasks,
+          "All caught up — no upcoming tasks for this station."
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-lg font-bold text-slate-900">Complete Tasks</h2>
+        {renderTaskGroup(
+          completedTasks,
+          "No tasks completed yet today."
+        )}
+      </section>
     </div>
   );
 }

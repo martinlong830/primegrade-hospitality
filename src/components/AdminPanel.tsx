@@ -20,6 +20,7 @@ import {
   saveSection,
   saveMapZoneLabel,
   saveMapZone,
+  deleteMapZone,
   saveMapLayoutSettings,
   saveStation,
   saveTask,
@@ -1102,6 +1103,10 @@ export default function AdminPanel({
           }}
           onMapZoneResize={async (zone) => {
             await saveMapZone(zone);
+            onUpdate();
+          }}
+          onMapZoneDelete={async (zoneId) => {
+            await deleteMapZone(zoneId);
             onUpdate();
           }}
           onMapLayoutChange={async (layout) => {

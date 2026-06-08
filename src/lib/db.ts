@@ -869,6 +869,25 @@ export async function saveMapZone(zone: MapZoneStored): Promise<MapZoneStored> {
   return saved;
 }
 
+export async function deleteMapZone(id: string): Promise<void> {
+  const data = await getAppData();
+  const mapZones = data.mapZones.filter((zone) => zone.id !== id);
+  const updated = { ...data, mapZones };
+
+  if (isSupabaseConfigured) {
+    const supabase = getSupabase();
+    if (supabase) {
+      const { error } = await supabase.from("map_zones").delete().eq("id", id);
+      if (!error) {
+        cacheLocally(updated);
+        return;
+      }
+    }
+  }
+
+  saveLocal(updated);
+}
+
 export async function saveMapLayoutSettings(
   settings: MapLayoutSettings
 ): Promise<MapLayoutSettings> {

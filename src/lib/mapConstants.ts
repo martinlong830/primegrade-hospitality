@@ -154,39 +154,44 @@ function clampMapDimension(value: number, min: number, max: number): number {
 }
 
 export function mergeMapZones(stored: MapZoneStored[]): MapZone[] {
-  const storedById = new Map(stored.map((zone) => [zone.id, zone]));
   const layout = mergeMapLayout();
 
-  return MAP_ZONE_DEFAULTS.map((defaults) => {
-    const saved = storedById.get(defaults.id);
-    const style = STYLE_BY_ID.get(defaults.id)!;
-    const geometry = saved
-      ? clampZoneGeometry(
-          {
-            x: saved.x,
-            y: saved.y,
-            width: saved.width,
-            height: saved.height,
-          },
-          layout
-        )
-      : clampZoneGeometry(
-          {
-            x: defaults.x,
-            y: defaults.y,
-            width: defaults.width,
-            height: defaults.height,
-          },
-          layout
-        );
+  return stored
+    .filter(
+      (zone) =>
+        Number.isFinite(zone.width) &&
+        Number.isFinite(zone.height) &&
+        zone.width > 0 &&
+        zone.height > 0
+    )
+    .map((saved) => {
+      const defaults = MAP_ZONE_DEFAULTS.find((zone) => zone.id === saved.id);
+      const style = STYLE_BY_ID.get(saved.id) ?? {
+        stationSlugs: defaults?.stationSlugs ?? [],
+        fill: defaults?.fill ?? "#f8fafc",
+        stroke: defaults?.stroke ?? "#cbd5e1",
+        labelColor: defaults?.labelColor ?? "#64748b",
+      };
+      const geometry = clampZoneGeometry(
+        {
+          x: saved.x,
+          y: saved.y,
+          width: saved.width,
+          height: saved.height,
+        },
+        layout
+      );
 
-    return {
-      id: defaults.id,
-      label: saved?.name?.trim() || defaults.label,
-      ...geometry,
-      ...style,
-    };
-  });
+      return {
+        id: saved.id,
+        label: saved.name?.trim() || defaults?.label || "Zone",
+        ...geometry,
+        stationSlugs: style.stationSlugs,
+        fill: style.fill,
+        stroke: style.stroke,
+        labelColor: style.labelColor,
+      };
+    });
 }
 
 export function getBohWallBounds(zones: MapZone[]): { x: number; width: number } {
@@ -542,33 +547,43 @@ export function migrateStoredMapZones(
   const defaults = getDefaultMapZoneLabels();
   if (!stored?.length) return defaults;
 
-  const filtered = stored.filter((zone) => zone.id !== "cold-storage");
-  const storedById = new Map(filtered.map((zone) => [zone.id, zone]));
+  const filtered = stored.filter(
+    (zone) =>
+      zone.id !== "cold-storage" &&
+      Number.isFinite(zone.width) &&
+      Number.isFinite(zone.height) &&
+      zone.width > 0 &&
+      zone.height > 0
+  );
 
-  return defaults.map((defaultsZone) => {
-    const saved = storedById.get(defaultsZone.id);
-    if (!saved) return defaultsZone;
+  if (filtered.length === 0) return defaults;
 
+  return filtered.map((zone) => {
+    const defaultZone = MAP_ZONE_DEFAULTS.find((item) => item.id === zone.id);
     const hasGeometry =
-      Number.isFinite(saved.x) &&
-      Number.isFinite(saved.y) &&
-      Number.isFinite(saved.width) &&
-      Number.isFinite(saved.height);
+      Number.isFinite(zone.x) &&
+      Number.isFinite(zone.y) &&
+      Number.isFinite(zone.width) &&
+      Number.isFinite(zone.height);
 
-    if (!hasGeometry) {
+    if (!hasGeometry && defaultZone) {
       return {
-        ...defaultsZone,
-        name: saved.name?.trim() || defaultsZone.name,
+        id: defaultZone.id,
+        name: zone.name?.trim() || defaultZone.label,
+        x: defaultZone.x,
+        y: defaultZone.y,
+        width: defaultZone.width,
+        height: defaultZone.height,
       };
     }
 
     return {
-      id: defaultsZone.id,
-      name: saved.name?.trim() || defaultsZone.name,
-      x: saved.x,
-      y: saved.y,
-      width: saved.width,
-      height: saved.height,
+      id: zone.id,
+      name: zone.name?.trim() || defaultZone?.label || "Zone",
+      x: zone.x,
+      y: zone.y,
+      width: zone.width,
+      height: zone.height,
     };
   });
 }

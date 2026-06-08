@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminPanel from "@/components/AdminPanel";
-import DateNavigator from "@/components/DateNavigator";
+import PageHeader from "@/components/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { DateProvider, useViewDate } from "@/contexts/DateContext";
 import { getAppData } from "@/lib/db";
@@ -42,23 +42,15 @@ function AdminContent() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 py-4">
-          <div className="min-w-0 justify-self-start overflow-hidden">
-            <h1 className="truncate text-xl font-bold text-slate-900">
-              Admin Console
-            </h1>
-            <p className="truncate whitespace-nowrap text-sm text-slate-500">
-              {user.name} · Manage tasks, team &amp; layout
-            </p>
-          </div>
-          <div className="shrink-0 justify-self-center">
-            <DateNavigator />
-          </div>
-          <div className="flex shrink-0 justify-end gap-3 justify-self-end whitespace-nowrap">
+      <PageHeader
+        title="Admin Console"
+        subtitle={`${user.name} · Manage tasks, team & layout`}
+        maxWidthClass="max-w-6xl"
+        actions={
+          <>
             <Link
               href="/dashboard"
-              className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:px-4"
             >
               View Dashboard
             </Link>
@@ -67,16 +59,16 @@ function AdminContent() {
                 logout();
                 router.push("/login");
               }}
-              className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:px-4"
             >
               Sign Out
             </button>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <AdminPanel
             data={data}
             completionsForDate={dateCompletions}

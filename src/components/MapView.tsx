@@ -48,6 +48,7 @@ interface MapViewProps {
   onResetLayout?: () => void | Promise<void>;
   onMapZoneRename?: (zone: Pick<MapZoneStored, "id" | "name">) => void | Promise<void>;
   onMapZoneResize?: (zone: MapZoneStored) => void | Promise<void>;
+  onMapZoneDelete?: (zoneId: string) => void | Promise<void>;
   onMapLayoutChange?: (layout: MapLayoutSettings) => void | Promise<void>;
   onLayoutSaved?: () => void;
 }
@@ -93,21 +94,21 @@ function edgeHandleClass(edge: ResizeEdge): string {
   const base = `${RESIZE_HANDLE} `;
   switch (edge) {
     case "n":
-      return `${base} left-0 top-0 h-2 w-full cursor-ns-resize`;
+      return `${base} left-0 top-0 h-3 w-full cursor-ns-resize sm:h-2`;
     case "s":
-      return `${base} bottom-0 left-0 h-2 w-full cursor-ns-resize`;
+      return `${base} bottom-0 left-0 h-3 w-full cursor-ns-resize sm:h-2`;
     case "e":
-      return `${base} right-0 top-0 h-full w-2 cursor-ew-resize`;
+      return `${base} right-0 top-0 h-full w-3 cursor-ew-resize sm:w-2`;
     case "w":
-      return `${base} left-0 top-0 h-full w-2 cursor-ew-resize`;
+      return `${base} left-0 top-0 h-full w-3 cursor-ew-resize sm:w-2`;
     case "ne":
-      return `${base} right-0 top-0 h-3 w-3 cursor-ne-resize`;
+      return `${base} right-0 top-0 h-5 w-5 cursor-ne-resize sm:h-3 sm:w-3`;
     case "nw":
-      return `${base} left-0 top-0 h-3 w-3 cursor-nw-resize`;
+      return `${base} left-0 top-0 h-5 w-5 cursor-nw-resize sm:h-3 sm:w-3`;
     case "se":
-      return `${base} bottom-0 right-0 h-3 w-3 cursor-se-resize`;
+      return `${base} bottom-0 right-0 h-5 w-5 cursor-se-resize sm:h-3 sm:w-3`;
     case "sw":
-      return `${base} bottom-0 left-0 h-3 w-3 cursor-sw-resize`;
+      return `${base} bottom-0 left-0 h-5 w-5 cursor-sw-resize sm:h-3 sm:w-3`;
   }
 }
 
@@ -183,71 +184,102 @@ function RestaurantSchematic({
 interface ZoneLabelProps {
   zone: MapZone;
   editable: boolean;
+  canDelete: boolean;
   isEditing: boolean;
   editValue: string;
   onStartEdit: (zone: MapZone) => void;
   onEditChange: (value: string) => void;
   onSave: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }
 
 function ZoneLabel({
   zone,
   editable,
+  canDelete,
   isEditing,
   editValue,
   onStartEdit,
   onEditChange,
   onSave,
   onCancel,
+  onDelete,
 }: ZoneLabelProps) {
-  if (isEditing) {
-    return (
-      <div
-        className="absolute z-20 flex max-w-[calc(100%-16px)] items-center gap-1"
-        style={{ left: zone.x + 8, top: zone.y + 4 }}
-      >
-        <input
-          value={editValue}
-          onChange={(e) => onEditChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSave();
-            if (e.key === "Escape") onCancel();
-          }}
-          autoFocus
-          className="min-w-[80px] max-w-full rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-900 shadow-sm"
-        />
-        <button
-          type="button"
-          onClick={onSave}
-          className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-slate-800"
-        >
-          Save
-        </button>
-      </div>
-    );
-  }
+  const labelSize =
+    zone.width < 100 || zone.height < 48 ? "compact" : "normal";
 
   return (
-    <button
-      type="button"
-      onClick={() => editable && onStartEdit(zone)}
-      onDoubleClick={() => editable && onStartEdit(zone)}
-      disabled={!editable}
-      className={`absolute z-20 max-w-[calc(100%-20px)] truncate text-left text-[10px] font-medium tracking-wide ${
-        editable
-          ? "cursor-pointer rounded px-1 py-0.5 text-slate-600 hover:bg-white/70 hover:text-slate-800"
-          : "cursor-default text-slate-500"
-      }`}
+    <div
+      className="pointer-events-none absolute z-20"
       style={{
-        left: zone.x + 10,
-        top: zone.y + 6,
-        color: editable ? undefined : zone.labelColor,
+        left: zone.x,
+        top: zone.y,
+        width: zone.width,
+        height: zone.height,
       }}
-      title={editable ? "Click to rename zone" : undefined}
     >
-      {zone.label}
-    </button>
+      {isEditing ? (
+        <div className="pointer-events-auto box-border flex h-full min-h-0 flex-col gap-1 overflow-hidden p-1">
+          <input
+            value={editValue}
+            onChange={(e) => onEditChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSave();
+              if (e.key === "Escape") onCancel();
+            }}
+            autoFocus
+            className="min-h-0 w-full min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-900 shadow-sm"
+          />
+          <div className="flex shrink-0 flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={onSave}
+              className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-slate-800"
+            >
+              Save
+            </button>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100"
+              >
+                Delete
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => editable && onStartEdit(zone)}
+          disabled={!editable}
+          className={`pointer-events-auto absolute left-1 top-1 max-w-[calc(100%-8px)] truncate text-left ${
+            editable
+              ? "cursor-pointer rounded px-1 py-0.5 hover:bg-white/60"
+              : "cursor-default"
+          }`}
+          title={editable ? "Tap to rename zone" : undefined}
+        >
+          <span
+            className={`block truncate font-medium tracking-wide text-slate-600 ${
+              labelSize === "compact" ? "text-[9px]" : "text-[10px]"
+            }`}
+            style={{ color: editable ? undefined : zone.labelColor }}
+          >
+            {zone.label}
+          </span>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -341,7 +373,7 @@ const StationZone = memo(function StationZone({
               e.stopPropagation();
               onRemove(station);
             }}
-            className="shrink-0 rounded px-0.5 text-xs leading-none text-white/80 opacity-0 transition-opacity hover:bg-white/20 hover:text-white group-hover:opacity-100"
+            className="shrink-0 rounded px-1 text-xs leading-none text-white/90 opacity-100 hover:bg-white/20 hover:text-white sm:opacity-0 sm:group-hover:opacity-100"
             title="Remove from layout"
           >
             ×
@@ -351,7 +383,7 @@ const StationZone = memo(function StationZone({
 
       {editable && (
         <div
-          className={`${RESIZE_HANDLE} bottom-0 right-0 h-3 w-3 cursor-se-resize`}
+          className={`${RESIZE_HANDLE} bottom-0 right-0 h-5 w-5 cursor-se-resize sm:h-3 sm:w-3`}
           onPointerDown={(e) => onResizePointerDown(e, station)}
         />
       )}
@@ -415,10 +447,13 @@ export default function MapView({
   onResetLayout,
   onMapZoneRename,
   onMapZoneResize,
+  onMapZoneDelete,
   onMapLayoutChange,
   onLayoutSaved,
 }: MapViewProps) {
+  const outerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
   const dragRef = useRef<DragState | null>(null);
   const stationResizeRef = useRef<StationResizeState | null>(null);
   const zoneResizeRef = useRef<ZoneResizeState | null>(null);
@@ -453,6 +488,27 @@ export default function MapView({
   const [resetting, setResetting] = useState(false);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [editZoneName, setEditZoneName] = useState("");
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const outer = outerRef.current;
+    if (!outer) return;
+
+    const updateScale = () => {
+      const available = outer.clientWidth;
+      const next =
+        available > 0
+          ? Math.min(1, available / localLayout.width)
+          : 1;
+      scaleRef.current = next;
+      setScale(next);
+    };
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(outer);
+    return () => observer.disconnect();
+  }, [localLayout.width]);
 
   const mergedZones = useMemo(
     () => mergeMapZones(mapZones ?? getDefaultMapZoneLabels()),
@@ -731,12 +787,19 @@ export default function MapView({
     [editable, localLayout.height, localLayout.width, onMapLayoutChange]
   );
 
+  const mapDelta = useCallback((clientDx: number, clientDy: number) => {
+    const factor = scaleRef.current || 1;
+    return { dx: clientDx / factor, dy: clientDy / factor };
+  }, []);
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       const canvasResize = canvasResizeRef.current;
       if (canvasResize) {
-        const dx = e.clientX - canvasResize.startX;
-        const dy = e.clientY - canvasResize.startY;
+        const { dx, dy } = mapDelta(
+          e.clientX - canvasResize.startX,
+          e.clientY - canvasResize.startY
+        );
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => {
           const next = clampCanvasSize(
@@ -750,8 +813,10 @@ export default function MapView({
 
       const zoneResize = zoneResizeRef.current;
       if (zoneResize) {
-        const dx = e.clientX - zoneResize.startX;
-        const dy = e.clientY - zoneResize.startY;
+        const { dx, dy } = mapDelta(
+          e.clientX - zoneResize.startX,
+          e.clientY - zoneResize.startY
+        );
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => {
           const geometry = resizeZoneGeometry(
@@ -772,8 +837,10 @@ export default function MapView({
 
       const stationResize = stationResizeRef.current;
       if (stationResize) {
-        const dx = e.clientX - stationResize.startX;
-        const dy = e.clientY - stationResize.startY;
+        const { dx, dy } = mapDelta(
+          e.clientX - stationResize.startX,
+          e.clientY - stationResize.startY
+        );
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => {
           const geometry = resizeStationGeometry(
@@ -795,8 +862,10 @@ export default function MapView({
       const drag = dragRef.current;
       if (!drag) return;
 
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
+      const { dx, dy } = mapDelta(
+        e.clientX - drag.startX,
+        e.clientY - drag.startY
+      );
 
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
@@ -821,7 +890,7 @@ export default function MapView({
         });
       });
     },
-    [localLayout, wall]
+    [localLayout, mapDelta, wall]
   );
 
   const handlePointerUp = useCallback(
@@ -833,8 +902,10 @@ export default function MapView({
 
       const canvasResize = canvasResizeRef.current;
       if (canvasResize) {
-        const dx = e.clientX - canvasResize.startX;
-        const dy = e.clientY - canvasResize.startY;
+        const { dx, dy } = mapDelta(
+          e.clientX - canvasResize.startX,
+          e.clientY - canvasResize.startY
+        );
         commitLayoutSize(
           canvasResize.originW + dx,
           canvasResize.originH + dy
@@ -845,8 +916,10 @@ export default function MapView({
 
       const zoneResize = zoneResizeRef.current;
       if (zoneResize) {
-        const dx = e.clientX - zoneResize.startX;
-        const dy = e.clientY - zoneResize.startY;
+        const { dx, dy } = mapDelta(
+          e.clientX - zoneResize.startX,
+          e.clientY - zoneResize.startY
+        );
         const geometry = resizeZoneGeometry(
           zoneResize.origin,
           zoneResize.edge,
@@ -862,8 +935,10 @@ export default function MapView({
 
       const stationResize = stationResizeRef.current;
       if (stationResize) {
-        const dx = e.clientX - stationResize.startX;
-        const dy = e.clientY - stationResize.startY;
+        const { dx, dy } = mapDelta(
+          e.clientX - stationResize.startX,
+          e.clientY - stationResize.startY
+        );
         const geometry = resizeStationGeometry(
           stationResize.origin,
           dx,
@@ -880,8 +955,10 @@ export default function MapView({
       const drag = dragRef.current;
       if (!drag) return;
 
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
+      const { dx, dy } = mapDelta(
+        e.clientX - drag.startX,
+        e.clientY - drag.startY
+      );
       const clamped = clampStationLayout(
         {
           id: drag.id,
@@ -902,7 +979,7 @@ export default function MapView({
       setDraggingId(null);
       setDragOffset(null);
     },
-    [commitLayoutSize, commitStationUpdate, commitZoneGeometry, localLayout, wall]
+    [commitLayoutSize, commitStationUpdate, commitZoneGeometry, localLayout, mapDelta, wall]
   );
 
   const handlePlaceStation = async (station: Station) => {
@@ -976,6 +1053,20 @@ export default function MapView({
     setEditingZoneId(null);
     setEditZoneName("");
   }, [editZoneName, editingZoneId, onMapZoneRename]);
+
+  const handleDeleteZone = useCallback(async () => {
+    if (!editingZoneId || !onMapZoneDelete) return;
+    const zoneId = editingZoneId;
+    setEditingZoneId(null);
+    setEditZoneName("");
+    setLocalZoneOverrides((prev) => {
+      const next = new Map(prev);
+      next.delete(zoneId);
+      return next;
+    });
+    pendingZoneSaveRef.current.delete(zoneId);
+    await onMapZoneDelete(zoneId);
+  }, [editingZoneId, onMapZoneDelete]);
 
   const canEditZones = editable && Boolean(onMapZoneResize);
   const canEditCanvas = editable && Boolean(onMapLayoutChange);
@@ -1068,18 +1159,26 @@ export default function MapView({
         )}
       </div>
 
-      <div
-        ref={containerRef}
-        className="relative mx-auto overflow-hidden rounded-xl border border-slate-300 bg-slate-50 shadow-sm"
-        style={{
-          width: localLayout.width,
-          height: localLayout.height,
-          maxWidth: "100%",
-        }}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
+      <div ref={outerRef} className="w-full">
+        <div
+          style={{
+            width: localLayout.width * scale,
+            height: localLayout.height * scale,
+          }}
+        >
+          <div
+            ref={containerRef}
+            className="relative touch-none overflow-hidden rounded-xl border border-slate-300 bg-slate-50 shadow-sm"
+            style={{
+              width: localLayout.width,
+              height: localLayout.height,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
         <RestaurantSchematic zones={zones} layout={localLayout} wall={wall} />
 
         {canEditZones &&
@@ -1096,12 +1195,14 @@ export default function MapView({
             key={`label-${zone.id}`}
             zone={zone}
             editable={editable && Boolean(onMapZoneRename)}
+            canDelete={editable && Boolean(onMapZoneDelete)}
             isEditing={editingZoneId === zone.id}
             editValue={editZoneName}
             onStartEdit={handleStartZoneEdit}
             onEditChange={setEditZoneName}
             onSave={handleSaveZoneEdit}
             onCancel={handleCancelZoneEdit}
+            onDelete={handleDeleteZone}
           />
         ))}
 
@@ -1122,11 +1223,13 @@ export default function MapView({
 
         {canEditCanvas && (
           <div
-            className={`${RESIZE_HANDLE} bottom-0 right-0 z-50 h-4 w-4 cursor-se-resize`}
+            className={`${RESIZE_HANDLE} bottom-0 right-0 z-50 h-5 w-5 cursor-se-resize sm:h-4 sm:w-4`}
             title="Resize floor plan"
             onPointerDown={handleCanvasResizePointerDown}
           />
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

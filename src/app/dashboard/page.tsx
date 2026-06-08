@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ChecklistView from "@/components/ChecklistView";
-import DateNavigator from "@/components/DateNavigator";
 import EmployeeTaskList from "@/components/EmployeeTaskList";
 import MapView from "@/components/MapView";
+import PageHeader from "@/components/PageHeader";
 import StationTabs from "@/components/StationTabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { DateProvider, useViewDate } from "@/contexts/DateContext";
@@ -62,32 +62,21 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 py-4">
-          <div className="min-w-0 justify-self-start overflow-hidden">
-            <h1 className="truncate text-xl font-bold text-slate-900">
-              Employee Dashboard
-            </h1>
-            <p className="truncate whitespace-nowrap text-sm text-slate-500">
-              Welcome, {user.name}
-            </p>
-          </div>
-          <div className="shrink-0 justify-self-center">
-            <DateNavigator />
-          </div>
-          <div className="shrink-0 justify-self-end">
-            <button
-              onClick={() => {
-                logout();
-                router.push("/login");
-              }}
-              className="whitespace-nowrap rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Employee Dashboard"
+        subtitle={`Welcome, ${user.name}`}
+        actions={
+          <button
+            onClick={() => {
+              logout();
+              router.push("/login");
+            }}
+            className="whitespace-nowrap rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:px-4"
+          >
+            Sign Out
+          </button>
+        }
+      />
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
         <StationTabs
@@ -104,7 +93,7 @@ function DashboardContent() {
           onSelectMap={() => setActiveView("map")}
         />
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           {showMap ? (
             <MapView
               stations={data.stations}
